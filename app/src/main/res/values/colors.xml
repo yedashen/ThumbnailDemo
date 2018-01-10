@@ -3,4 +3,10 @@
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
+
+    <color name="commonBg">#f7f7f7</color>
+    <!--字体颜色，灰色-->
+    <color name="TextGrayColor">#888888</color>
+    <color name="normalLine">#ccc</color>
+
 </resources>
