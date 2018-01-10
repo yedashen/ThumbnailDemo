@@ -1,8 +1,12 @@
 package tyj.com.thumbnaildemo.ui;
 
 import android.Manifest;
+import android.content.ContentValues;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
@@ -17,6 +21,7 @@ import pub.devrel.easypermissions.EasyPermissions;
 import tyj.com.thumbnaildemo.App;
 import tyj.com.thumbnaildemo.R;
 import tyj.com.thumbnaildemo.util.bitmap.BitmapUtil;
+import tyj.com.thumbnaildemo.util.file.CameraFile;
 import tyj.com.thumbnaildemo.util.file.FileUtil;
 import tyj.com.thumbnaildemo.view.dialog.SelectPicDialog;
 
@@ -29,10 +34,13 @@ public class MainActivity extends AppCompatActivity {
     private String mSdFileAbsolutePath = App.mShareInstance.getExternalFilesDir(null).getAbsolutePath();
     private static final int PERMISSION_CODE = 200;
     public static final String SELECT_PIC = "selectUrl";
-    public static final int REQUEST_CODE = 38;
+    public static final int TAKE_PICTURE = 25;
+    public static final int SELECT_PIC_FROM_ALBUM = 38;
     private ImageView mSourceIv;
     private ImageView mThumbnailIv;
     private SelectPicDialog mSelectPicDialog = null;
+    private String mTempUrl = null;
+    private static final int SDK_V7 = 24;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,8 +54,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK && requestCode == REQUEST_CODE && data != null) {
+        if (resultCode == RESULT_OK && requestCode == SELECT_PIC_FROM_ALBUM && data != null) {
             showThumbPic(data.getStringExtra(SELECT_PIC));
+        }
+
+        if (resultCode == RESULT_OK && requestCode == TAKE_PICTURE) {
+            if (CameraFile.haveTakePhoto(mTempUrl)) {
+                showThumbPic(mTempUrl);
+            }
         }
     }
 
@@ -97,9 +111,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void requestPermission() {
-        if (!EasyPermissions.hasPermissions(this, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            EasyPermissions.requestPermissions(this, "需要读取SD卡权限", PERMISSION_CODE, Manifest.permission.READ_EXTERNAL_STORAGE
-                    , Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        if (!EasyPermissions.hasPermissions(this, Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA)) {
+            EasyPermissions.requestPermissions(this, "需要读取SD卡权限",
+                    PERMISSION_CODE, Manifest.permission.READ_EXTERNAL_STORAGE
+                    , Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    , Manifest.permission.CAMERA);
         }
     }
 
@@ -109,15 +126,36 @@ public class MainActivity extends AppCompatActivity {
             mSelectPicDialog.setItemClickListener(new SelectPicDialog.SelectPicItemClickListener() {
                 @Override
                 public void clickTakePhoto() {
-
+                    //我没做严谨的权限判断，请一次性给予权限可好
+                    goCamera();
                 }
 
                 @Override
                 public void clickGoAlbum() {
-                    AlbumActivity.newInstance(MainActivity.this, REQUEST_CODE);
+                    //我没做严谨的权限判断，请一次性给予权限可好
+                    AlbumActivity.newInstance(MainActivity.this, SELECT_PIC_FROM_ALBUM);
                 }
             });
         }
         mSelectPicDialog.show();
+    }
+
+    protected void goCamera() {
+        File file = CameraFile.getOutputMediaFile();
+        mTempUrl = file.getAbsolutePath();
+        Log.e(TAG, "点击相机的时候生成的url是:" + mTempUrl);
+        Intent openCameraIntent;
+        if (Build.VERSION.SDK_INT >= SDK_V7) {
+            //7.0
+            openCameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            ContentValues contentValues = new ContentValues(1);
+            contentValues.put(MediaStore.Images.Media.DATA, mTempUrl);
+            Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
+            openCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        } else {
+            openCameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE, null);
+            openCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(file));
+        }
+        startActivityForResult(openCameraIntent, TAKE_PICTURE);
     }
 }
